@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CHADLI STOCK PRO - Ultimate Commercial Edition</title>
+    <style>
+        :root { --p: #1a5bb8; --s: #2c3e50; --acc: #27ae60; --err: #e74c3c; --bg: #f4f7f6; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: var(--bg); color: #333; overflow-x: hidden; }
+        .hidden { display: none !important; }
+        
+        /* --- SPLASH SCREEN --- */
+        #splash { position: fixed; inset: 0; background: var(--p); color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10000; transition: 0.8s; }
+        .loader { width: 50px; height: 50px; border: 5px solid white; border-top-color: transparent; border-radius: 50%; animation: rot 1s linear infinite; margin-top: 20px; }
+        @keyframes rot { to { transform: rotate(360deg); } }
+
+        /* --- INTERFACE --- */
+        .container { max-width: 1300px; margin: 20px auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        .header-pro { display: flex; justify-content: space-between; border-bottom: 4px solid var(--p); padding-bottom: 15px; margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th { background: var(--s); color: white; padding: 12px; text-align: left; border: 1px solid #ddd; }
+        td { padding: 10px; border: 1px solid #ddd; border-bottom: 1px solid #ddd; }
+        .low-stock { background: #ffebee !important; color: #c62828; font-weight: bold; }
+        button { padding: 10px 18px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .btn-p { background: var(--p); color: white; }
+        .btn-s { background: var(--acc); color: white; }
+        input, select { padding: 10px; border: 1px solid #ccc; border-radius: 6px; width: 100%; }
+
+        /* --- SÉCURITÉ CLÉ --- */
+        .key-box { background: #eee; color: #999; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-family: monospace; }
+        .key-box.visible { color: #e74c3c; font-weight: bold; }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; }
+        .stat-card { padding: 15px; border-radius: 8px; color: white; text-align: center; }
+
+        #login-box { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 9000; display: flex; justify-content: center; align-items: center; }
+        .login-card { background: white; padding: 40px; border-radius: 15px; width: 380px; text-align: center; }
+
+        /* --- LOGIQUE IMPRESSION --- */
+        @media print { 
+            .no-print, button, .stats-grid, input, select, hr { display: none !important; } 
+            .container { box-shadow: none; width: 100%; margin: 0; padding: 0; }
+            .tab-content { display: none !important; }
+            .tab-content.print-active { display: block !important; }
+            table { border: 1px solid #000; }
+            th, td { border: 1px solid #000 !important; color: black !important; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="splash">
+    <h1 style="letter-spacing: 5px; font-size: 2.5em;">CHADLI TECHNOLOGY</h1>
+    <p>Système de Gestion de Stock Professionnel v2026</p>
+    <div class="loader"></div>
+</div>
+
+<div id="login-box" class="hidden">
+    <div class="login-card">
+        <h2 id="log-status">Connexion</h2>
+        <div id="trial-info" style="font-weight: bold; color: var(--p); margin-bottom: 10px;"></div>
+        <div id="auth-fields">
+            <select id="u-sel" style="margin-bottom: 10px;"></select>
+            <input type="password" id="u-pass" placeholder="Mot de passe" style="margin-bottom: 15px;">
+            <button onclick="doLogin()" class="btn-p" style="width: 100%;">ENTRER DANS LA SESSION</button>
+        </div>
+        <div id="lic-fields" class="hidden">
+            <p style="color:red; font-weight:bold;">LICENCE EXPIREE OU BLOQUÉE</p>
+            <input type="text" id="lic-input" placeholder="Clé d'activation (6 mois)">
+            <button onclick="doActivate()" class="btn-s" style="width: 100%; margin-top:10px;">ACTIVER</button>
+        </div>
+    </div>
+</div>
+
+<div id="main-app" class="container hidden">
+    <div class="header-pro">
+        <div id="logo-zone">
+            <img id="logo-img" style="max-width:140px; display:none;">
+            <p id="h-rc" style="font-size:0.75em; margin:5px 0;"></p>
+        </div>
+        <div style="text-align: right;">
+            <h1 id="h-name" style="margin:0; color:var(--p);">ENTREPRISE CHADLI</h1>
+            <p id="h-adr" style="margin:2px 0;"></p>
+            <p id="h-tel" style="margin:2px 0; font-weight:bold;"></p>
+        </div>
+    </div>
+
+    <div class="no-print">
+        <div class="stats-grid">
+            <div class="stat-card" style="background:var(--p)">Valeur Stock: <br><b id="st-val">0.00</b> DA</div>
+            <div class="stat-card" style="background:var(--acc)">Articles: <br><b id="st-count">0</b></div>
+            <div class="stat-card" style="background:var(--err)">Alertes: <br><b id="st-alert">0</b></div>
+        </div>
+        <div style="display:flex; gap:10px; margin-bottom:20px; flex-wrap: wrap;">
+            <button onclick="showTab('inv')" class="btn-p">📦 Inventaire</button>
+            <button onclick="showTab('mouv')" class="btn-p">📝 Mouvements</button>
+            <button id="admin-btn" onclick="showTab('cfg')" class="btn-p" style="background:#555;">⚙️ Admin</button>
+            <button onclick="imprimerPro()" style="background:#34495e; color:white; margin-left:auto;">🖨️ IMPRIMER RAPPORT</button>
+            <button onclick="location.reload()" style="background:#7f8c8d; color:white;">Déconnexion</button>
+        </div>
+    </div>
+
+    <!-- INVENTAIRE -->
+    <div id="tab-inv" class="tab-content">
+        <h2 style="text-align:center;">ÉTAT DE L'INVENTAIRE</h2>
+        <table>
+            <thead>
+                <tr><th>Réf</th><th>Désignation</th><th>Initial</th><th>Entrées</th><th>Sorties</th><th>En Stock</th><th>Valeur (DA)</th></tr>
+            </thead>
+            <tbody id="body-inv"></tbody>
+        </table>
+    </div>
+
+    <!-- MOUVEMENTS -->
+    <div id="tab-mouv" class="tab-content hidden">
+        <h2 style="text-align:center;">JOURNAL DES MOUVEMENTS</h2>
+        <div class="no-print" style="background:#eee; padding:15px; border-radius:8px; margin-bottom:15px;">
+            <div style="display:grid; grid-template-columns:repeat(5,1fr) 100px; gap:10px; margin-bottom:10px;">
+                <input type="date" id="m-date">
+                <select id="m-prod"></select>
+                <input type="number" id="m-qte" placeholder="Qté">
+                <select id="m-type"><option value="IN">ENTRÉE</option><option value="OUT">SORTIE</option></select>
+                <input type="text" id="m-ref" placeholder="Réf/Bon">
+                <button onclick="addMouv()" class="btn-s">AJOUTER</button>
+            </div>
+            <div style="display:flex; align-items:center; gap:15px;">
+                <strong>🔍 Filtre période :</strong>
+                Du <input type="date" id="f-start" onchange="render()" style="width:150px;">
+                Au <input type="date" id="f-end" onchange="render()" style="width:150px;">
+                <button onclick="resetFiltre()">Effacer</button>
+            </div>
+        </div>
+        <table>
+            <thead>
+                <tr><th>Date</th><th>Article</th><th>Type</th><th>Quantité</th><th>Référence</th></tr>
+            </thead>
+            <tbody id="body-mouv"></tbody>
+        </table>
+    </div>
+
+    <!-- ADMIN -->
+    <div id="tab-cfg" class="tab-content hidden no-print">
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+            <div style="background:#f9f9f9; padding:15px; border-radius:8px;">
+                <h4>🏢 Configuration Entreprise</h4>
+                <input type="text" id="c-name" placeholder="Nom Commercial">
+                <input type="text" id="c-adr" placeholder="Adresse">
+                <input type="text" id="c-rc" placeholder="RC / NIF">
+                <input type="text" id="c-tel" placeholder="Téléphone">
+                <label>Logo :</label><input type="file" onchange="setLogo(this)">
+                <button onclick="saveCfg()" class="btn-p" style="margin-top:10px; width:100%;">SAUVEGARDER CONFIG</button>
+            </div>
+            <div style="background:#f9f9f9; padding:15px; border-radius:8px;">
+                <h4>🔑 Données & Sécurité</h4>
+                <div style="display: flex; gap: 5px; flex-direction: column;">
+                    <button onclick="backupSystem()" style="background:#2c3e50; color:white;">💾 SAUVEGARDER TOUT (.chadli)</button>
+                    <button onclick="document.getElementById('file-import').click()" style="background:#e67e22; color:white;">📥 IMPORTER SAUVEGARDE</button>
+                    <input type="file" id="file-import" class="hidden" onchange="restoreSystem(this)">
+                </div>
+                <hr>
+                <p>Clé actuelle (cliquer) :</p>
+                <div id="key-display" class="key-box" onclick="toggleKey()">********</div>
+                <input type="text" id="c-key" placeholder="Nouvelle Clé" style="margin-top:10px;">
+                <button onclick="saveCfg()" class="btn-s" style="width:100%; margin-top:10px;">CHANGER LA CLÉ</button>
+            </div>
+        </div>
+        <div style="margin-top:20px; background:#e3f2fd; padding:15px; border-radius:8px;">
+            <h4>🆕 Ajouter un Nouveau Produit</h4>
+            <div style="display:grid; grid-template-columns: 1fr 2fr 1fr 1fr 100px; gap:10px;">
+                <input type="text" id="p-ref" placeholder="Réf">
+                <input type="text" id="p-nom" placeholder="Désignation">
+                <input type="number" id="p-init" placeholder="Stock Initial">
+                <input type="number" id="p-pa" placeholder="Prix Achat">
+                <button onclick="addProd()" class="btn-p">AJOUTER</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let db = JSON.parse(localStorage.getItem('chadli_pro_final')) || {
+        prods: [], mouvs: [], users: [{n:'Admin', p:'admin123', r:'admin'}],
+        cfg: {name:'ETS CHADLI', adr:'Sidi Bel Abbès', rc:'RC: 22/00-123', tel:'048 00 00 00', logo:'', key:'CHADLI-2026', lastLic: -1},
+        inst: new Date().getTime()
+    };
+
+    window.onload = () => {
+        document.getElementById('m-date').valueAsDate = new Date();
+        setTimeout(() => {
+            document.getElementById('splash').style.opacity = '0';
+            setTimeout(() => { document.getElementById('splash').style.display = 'none'; checkSecurity(); }, 800);
+        }, 2000);
+    };
+
+    function checkSecurity() {
+        let now = new Date().getTime();
+        let isExpired = (now - db.inst) > (15 * 24 * 60 * 60 * 1000);
+        let semester = new Date().getMonth() < 6 ? 1 : 2;
+        document.getElementById('login-box').classList.remove('hidden');
+        if(db.cfg.lastLic != semester || isExpired) {
+            document.getElementById('trial-info').innerText = "LICENCE REQUISE";
+            document.getElementById('auth-fields').classList.add('hidden');
+            document.getElementById('lic-fields').classList.remove('hidden');
+        } else {
+            document.getElementById('trial-info').innerText = "SESSION SÉCURISÉE";
+            updateUserList();
+        }
+    }
+
+    // --- NOUVELLE FONCTION IMPORT/EXPORT ---
+    function backupSystem() {
+        let dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db));
+        let downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", "BACKUP_CHADLI_" + new Date().toLocaleDateString() + ".chadli");
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+    }
+
+    function restoreSystem(input) {
+        let reader = new FileReader();
+        reader.onload = function(){
+            try {
+                let importedData = JSON.parse(reader.result);
+                if(importedData.prods && importedData.cfg) {
+                    db = importedData;
+                    save();
+                    alert("✅ Données restaurées avec succès ! Le système va redémarrer.");
+                    location.reload();
+                } else { throw "Format invalide"; }
+            } catch(e) { alert("❌ Erreur : Le fichier de sauvegarde est corrompu."); }
+        };
+        reader.readAsText(input.files[0]);
+    }
+
+    function doActivate() {
+        if(document.getElementById('lic-input').value === db.cfg.key) {
+            db.cfg.lastLic = new Date().getMonth() < 6 ? 1 : 2;
+            db.inst = new Date().getTime(); save(); location.reload();
+        } else { alert("Clé incorrecte !"); }
+    }
+
+    function doLogin() {
+        let u = document.getElementById('u-sel').value, p = document.getElementById('u-pass').value;
+        let found = db.users.find(x => x.n === u && x.p === p);
+        if(found) {
+            document.getElementById('login-box').classList.add('hidden');
+            document.getElementById('main-app').classList.remove('hidden');
+            if(found.r !== 'admin') document.getElementById('admin-btn').classList.add('hidden');
+            initUI();
+        } else { alert("Erreur de mot de passe"); }
+    }
+
+    function render() {
+        let bInv = document.getElementById('body-inv'), bMouv = document.getElementById('body-mouv'), sel = document.getElementById('m-prod');
+        let totalVal = 0, alertCount = 0;
+        let start = document.getElementById('f-start').value, end = document.getElementById('f-end').value;
+
+        bInv.innerHTML = ""; sel.innerHTML = '<option value="">-- Article --</option>';
+        db.prods.forEach((p, i) => {
+            let inQ = db.mouvs.filter(m => m.pIdx == i && m.type == 'IN').reduce((a,b)=>a+b.qte, 0);
+            let outQ = db.mouvs.filter(m => m.pIdx == i && m.type == 'OUT').reduce((a,b)=>a+b.qte, 0);
+            let stock = p.init + inQ - outQ;
+            let val = stock * p.pa; totalVal += val;
+            if(stock <= 5) alertCount++;
+            bInv.innerHTML += `<tr class="${stock <= 5 ? 'low-stock' : ''}"><td>${p.ref}</td><td>${p.nom}</td><td>${p.init}</td><td>${inQ}</td><td>${outQ}</td><td>${stock}</td><td>${val.toFixed(2)}</td></tr>`;
+            sel.innerHTML += `<option value="${i}">${p.nom}</option>`;
+        });
+
+        bMouv.innerHTML = "";
+        let filtered = db.mouvs.filter(m => {
+            if(start && m.date < start) return false;
+            if(end && m.date > end) return false;
+            return true;
+        });
+        filtered.slice().reverse().forEach(m => {
+            let p = db.prods[m.pIdx] || {nom:'Supprimé'};
+            bMouv.innerHTML += `<tr><td>${m.date}</td><td>${p.nom}</td><td>${m.type}</td><td>${m.qte}</td><td>${m.ref}</td></tr>`;
+        });
+        document.getElementById('st-val').innerText = totalVal.toFixed(2);
+        document.getElementById('st-count').innerText = db.prods.length;
+        document.getElementById('st-alert').innerText = alertCount;
+    }
+
+    function addProd() {
+        db.prods.push({ref: document.getElementById('p-ref').value, nom: document.getElementById('p-nom').value, init: parseInt(document.getElementById('p-init').value)||0, pa: parseFloat(document.getElementById('p-pa').value)||0});
+        save();
+    }
+
+    function addMouv() {
+        db.mouvs.push({date: document.getElementById('m-date').value, pIdx: document.getElementById('m-prod').value, qte: parseInt(document.getElementById('m-qte').value), type: document.getElementById('m-type').value, ref: document.getElementById('m-ref').value});
+        save();
+    }
+
+    function toggleKey() {
+        let box = document.getElementById('key-display');
+        if(box.innerText === "********") { box.innerText = db.cfg.key; box.classList.add('visible'); }
+        else { box.innerText = "********"; box.classList.remove('visible'); }
+    }
+
+    function imprimerPro() {
+        let activeTab = "";
+        if(!document.getElementById('tab-inv').classList.contains('hidden')) activeTab = 'tab-inv';
+        if(!document.getElementById('tab-mouv').classList.contains('hidden')) activeTab = 'tab-mouv';
+        if(activeTab === "") return;
+        document.getElementById(activeTab).classList.add('print-active');
+        window.print();
+        document.getElementById(activeTab).classList.remove('print-active');
+    }
+
+    function showTab(id) { 
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden')); 
+        document.getElementById('tab-'+id).classList.remove('hidden'); 
+        render();
+    }
+
+    function save() { localStorage.setItem('chadli_pro_final', JSON.stringify(db)); render(); }
+    
+    function initUI() {
+        document.getElementById('h-name').innerText = db.cfg.name;
+        document.getElementById('h-adr').innerText = db.cfg.adr;
+        document.getElementById('h-rc').innerText = db.cfg.rc;
+        document.getElementById('h-tel').innerText = db.cfg.tel;
+        if(db.cfg.logo) { document.getElementById('logo-img').src = db.cfg.logo; document.getElementById('logo-img').style.display='block'; }
+        render();
+    }
+    
+    function saveCfg() {
+        db.cfg.name = document.getElementById('c-name').value || db.cfg.name;
+        db.cfg.adr = document.getElementById('c-adr').value || db.cfg.adr;
+        db.cfg.rc = document.getElementById('c-rc').value || db.cfg.rc;
+        db.cfg.tel = document.getElementById('c-tel').value || db.cfg.tel;
+        if(document.getElementById('c-key').value) db.cfg.key = document.getElementById('c-key').value;
+        save(); alert("Configuration mise à jour !");
+    }
+
+    function setLogo(el) { let r = new FileReader(); r.onload = (e) => { db.cfg.logo = e.target.result; save(); initUI(); }; r.readAsDataURL(el.files[0]); }
+    function updateUserList() { document.getElementById('u-sel').innerHTML = db.users.map(u => `<option>${u.n}</option>`).join(""); }
+    function resetFiltre() { document.getElementById('f-start').value=""; document.getElementById('f-end').value=""; render(); }
+</script>
+</body>
+</html>
